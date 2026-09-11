@@ -18,11 +18,16 @@ std::vector<Token> Lexer::tokenize() {
         if (c == ' ' || c == '\t' || c == '\r') { advance(); continue; }
         if (c == '\n') { line++; advance(); continue; }
 
-        if (isalpha(c)) { tokens.push_back(makeIdentifierOrKeyword()); continue; }
+        if (c == '-' && pos + 1 < (int)source.size() && source[pos + 1] == '-') {
+            while (!isAtEnd() && peek() != '\n') advance();
+            continue;
+        }
+
+        if (isalpha(c) || c == '_') { tokens.push_back(makeIdentifierOrKeyword()); continue; }
         if (isdigit(c)) { tokens.push_back(makeNumber()); continue; }
         if (c == '\'') { tokens.push_back(makeString()); continue; }
 
-        advance(); // consume the symbol below
+        advance(); // consume symbol
         switch (c) {
             case '=': tokens.push_back({TokenType::EQUALS, "=", line}); break;
             case '>':
@@ -54,10 +59,10 @@ Token Lexer::makeIdentifierOrKeyword() {
     static std::unordered_map<std::string, TokenType> keywords = {
         {"SELECT", TokenType::SELECT}, {"FROM", TokenType::FROM},
         {"WHERE", TokenType::WHERE}, {"ORDER", TokenType::ORDER},
-        {"BY", TokenType::BY}, {"AND", TokenType::AND}, {"OR", TokenType::OR},
-        {"CREATE", TokenType::CREATE}, {"TABLE", TokenType::TABLE},
-        {"INSERT", TokenType::INSERT}, {"INTO", TokenType::INTO},
-        {"VALUES", TokenType::VALUES}
+        {"BY", TokenType::BY}, {"AND", TokenType::AND},
+        {"OR", TokenType::OR}, {"CREATE", TokenType::CREATE},
+        {"TABLE", TokenType::TABLE}, {"INSERT", TokenType::INSERT},
+        {"INTO", TokenType::INTO}, {"VALUES", TokenType::VALUES}
     };
 
     std::string upper = text;
@@ -69,15 +74,48 @@ Token Lexer::makeIdentifierOrKeyword() {
 
 Token Lexer::makeNumber() {
     int start = pos;
-    while (!isAtEnd() && (isdigit(peek()) || peek() == '.')) advance();
+    bool hasDot = false;
+    while (!isAtEnd()) {
+        char c = peek();
+        if (isdigit(c)) {
+            advance();
+        } else if (c == '.' && !hasDot && pos + 1 < (int)source.size() && isdigit(source[pos + 1])) {
+            hasDot = true;
+            advance();
+        } else {
+            break;
+        }
+    }
     return {TokenType::NUMBER, source.substr(start, pos - start), line};
 }
 
 Token Lexer::makeString() {
     advance(); // skip opening '
-    int start = pos;
-    while (!isAtEnd() && peek() != '\'') advance();
-    std::string text = source.substr(start, pos - start);
+    std::string text;
+
+    while (!isAtEnd()) {
+        char c = peek();
+        if (c == '\'') {
+            break; // End of string
+        } else if (c == '\\' && pos + 1 < (int)source.size()) {
+            advance();
+            char next = advance();
+            if (next == 'n') text += '\n';
+            else if (next == 't') text += '\t';
+            else if (next == '\'') text += '\'';
+            else if (next == '\\') text += '\\';
+            else text += next;
+        } else {
+            if (c == '\n') line++;
+            text += c;
+            advance();
+        }
+    }
+
+    if (isAtEnd()) {
+        return {TokenType::UNKNOWN, text, line};
+    }
+
     advance(); // skip closing '
     return {TokenType::STRING, text, line};
 }

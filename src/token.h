@@ -26,3 +26,5 @@ struct Token {
     std::string text;  // actual matched text, e.g. "students", ">="
     int line;           // for error messages
 };
+
+std::string tokenTypeToString(TokenType type);

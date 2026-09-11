@@ -1,0 +1,74 @@
+#include "lexer.h"
+#include "parser.h"
+#include <iostream>
+#include <fstream>
+#include <sstream>
+
+void printExpr(const std::shared_ptr<Expr>& e, int indent) {
+    std::string pad(indent, ' ');
+    if (!e) return;
+    if (e->type == ExprType::BINARY) {
+        std::cout << pad << "BinaryExpr(op=\"" << e->op << "\")\n";
+        printExpr(e->left, indent + 2);
+        printExpr(e->right, indent + 2);
+    } else if (e->type == ExprType::COLUMN_REF) {
+        std::cout << pad << "ColumnRef(" << e->columnName << ")\n";
+    } else if (e->type == ExprType::LITERAL_NUM) {
+        std::cout << pad << "LiteralNum(" << e->literalValue << ")\n";
+    } else if (e->type == ExprType::LITERAL_STR) {
+        std::cout << pad << "LiteralStr('" << e->literalValue << "')\n";
+    }
+}
+
+void printStmt(const Stmt& s) {
+    if (s.type == StmtType::CREATE_TABLE) {
+        std::cout << "CreateTableStmt\n  table: " << s.createStmt->tableName << "\n  columns: ";
+        for (auto& c : s.createStmt->columns) std::cout << c << " ";
+        std::cout << "\n";
+    } else if (s.type == StmtType::INSERT) {
+        std::cout << "InsertStmt\n  table: " << s.insertStmt->tableName << "\n  values: ";
+        for (auto& v : s.insertStmt->values) std::cout << v << " ";
+        std::cout << "\n";
+    } else if (s.type == StmtType::SELECT) {
+        auto& sel = s.selectStmt;
+        std::cout << "SelectStmt\n  columns: ";
+        if (sel->selectAll) std::cout << "*";
+        else for (auto& c : sel->columns) std::cout << c << " ";
+        std::cout << "\n  table: " << sel->tableName << "\n";
+        if (sel->hasWhere) { std::cout << "  where:\n"; printExpr(sel->whereClause, 4); }
+        if (sel->hasOrderBy) std::cout << "  orderBy: " << sel->orderByColumn << "\n";
+    }
+    std::cout << "----\n";
+}
+
+int main(int argc, char* argv[]) {
+    std::string sql;
+    if (argc > 1) {
+        std::ifstream file(argv[1]);
+        if (!file.is_open()) {
+            std::cerr << "Error: Could not open file " << argv[1] << "\n";
+            return 1;
+        }
+        std::stringstream ss;
+        ss << file.rdbuf();
+        sql = ss.str();
+    } else {
+        sql =
+            "CREATE TABLE students (name, age, grade);"
+            "INSERT INTO students VALUES ('Alice', 22, 'A');"
+            "SELECT name, age FROM students WHERE age > 20 AND grade = 'A' ORDER BY age;"
+            "SELECT * FROM students;";
+    }
+
+    Lexer lexer(sql);
+    auto tokens = lexer.tokenize();
+    Parser parser(tokens);
+    try {
+        auto stmts = parser.parseProgram();
+        for (auto& s : stmts) printStmt(s);
+    } catch (const std::exception& e) {
+        std::cout << "ERROR: " << e.what() << "\n";
+        return 1;
+    }
+    return 0;
+}
