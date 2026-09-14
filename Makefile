@@ -1,7 +1,7 @@
 CXX = g++
 CXXFLAGS = -Wall -std=c++17
 
-SRC = src/token.cpp src/lexer.cpp src/parser.cpp src/main.cpp
+SRC = $(wildcard src/*.cpp)
 OUT = sqlcompiler
 
 all:

@@ -1,5 +1,7 @@
 #include "lexer.h"
 #include "parser.h"
+#include "semantic.h"
+#include "catalog.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -41,34 +43,42 @@ void printStmt(const Stmt& s) {
     std::cout << "----\n";
 }
 
+void runQuery(const std::string& sql) {
+    Catalog catalog;
+    try {
+        Lexer lexer(sql);
+        auto tokens = lexer.tokenize();
+
+        Parser parser(tokens);
+        auto stmts = parser.parseProgram();
+
+        for (auto& s : stmts) {
+            checkStatement(s, catalog);
+            printStmt(s);
+        }
+        std::cout << "All statements parsed and validated successfully.\n";
+    } catch (const std::exception& e) {
+        std::cout << "ERROR: " << e.what() << "\n";
+    }
+}
+
 int main(int argc, char* argv[]) {
-    std::string sql;
     if (argc > 1) {
         std::ifstream file(argv[1]);
-        if (!file.is_open()) {
-            std::cerr << "Error: Could not open file " << argv[1] << "\n";
+        if (!file) {
+            std::cout << "Could not open file: " << argv[1] << "\n";
             return 1;
         }
-        std::stringstream ss;
-        ss << file.rdbuf();
-        sql = ss.str();
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        runQuery(buffer.str());
     } else {
-        sql =
+        std::string defaultSql =
             "CREATE TABLE students (name, age, grade);"
             "INSERT INTO students VALUES ('Alice', 22, 'A');"
             "SELECT name, age FROM students WHERE age > 20 AND grade = 'A' ORDER BY age;"
             "SELECT * FROM students;";
-    }
-
-    Lexer lexer(sql);
-    auto tokens = lexer.tokenize();
-    Parser parser(tokens);
-    try {
-        auto stmts = parser.parseProgram();
-        for (auto& s : stmts) printStmt(s);
-    } catch (const std::exception& e) {
-        std::cout << "ERROR: " << e.what() << "\n";
-        return 1;
+        runQuery(defaultSql);
     }
     return 0;
 }
