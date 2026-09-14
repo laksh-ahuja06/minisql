@@ -1,6 +1,7 @@
-// token.cpp
+// token.cpp - Implementation of token utility helper functions.
 #include "token.h"
 
+// Maps TokenType enum values to their string names for debugging and AST logging.
 std::string tokenTypeToString(TokenType type) {
     switch (type) {
         case TokenType::SELECT: return "SELECT";

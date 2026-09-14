@@ -1,6 +1,8 @@
+// semantic.cpp - Implementation of semantic analysis checks for MiniSQL.
 #include "semantic.h"
 #include <stdexcept>
 
+// Recursively inspects expression nodes to ensure referenced column names exist in the catalog.
 void checkExpr(const std::shared_ptr<Expr>& expr, const std::string& tableName, Catalog& catalog) {
     if (!expr) return;
 
@@ -15,19 +17,24 @@ void checkExpr(const std::shared_ptr<Expr>& expr, const std::string& tableName, 
     }
 }
 
+// Validates top-level statements against schema catalog and updates catalog for DDL statements.
 void checkStatement(const Stmt& stmt, Catalog& catalog) {
     if (stmt.type == StmtType::CREATE_TABLE) {
         auto& c = stmt.createStmt;
+        // Verify table does not already exist
         if (catalog.tableExists(c->tableName)) {
             throw std::runtime_error("Table '" + c->tableName + "' already exists");
         }
+        // Register newly created table schema
         catalog.registerTable(c->tableName, c->columns);
 
     } else if (stmt.type == StmtType::INSERT) {
         auto& ins = stmt.insertStmt;
+        // Verify target table exists
         if (!catalog.tableExists(ins->tableName)) {
             throw std::runtime_error("Unknown table '" + ins->tableName + "'");
         }
+        // Verify inserted value count matches target table column count
         auto& cols = catalog.getColumns(ins->tableName);
         if (ins->values.size() != cols.size()) {
             throw std::runtime_error("Column count mismatch for table '" + ins->tableName +
@@ -37,9 +44,11 @@ void checkStatement(const Stmt& stmt, Catalog& catalog) {
 
     } else if (stmt.type == StmtType::SELECT) {
         auto& sel = stmt.selectStmt;
+        // Verify source table exists
         if (!catalog.tableExists(sel->tableName)) {
             throw std::runtime_error("Unknown table '" + sel->tableName + "'");
         }
+        // Verify all projected column names exist (unless SELECT *)
         if (!sel->selectAll) {
             for (auto& col : sel->columns) {
                 if (!catalog.columnExists(sel->tableName, col)) {
@@ -48,9 +57,11 @@ void checkStatement(const Stmt& stmt, Catalog& catalog) {
                 }
             }
         }
+        // Validate column references in WHERE clause
         if (sel->hasWhere) {
             checkExpr(sel->whereClause, sel->tableName, catalog);
         }
+        // Validate ORDER BY column reference
         if (sel->hasOrderBy) {
             if (!catalog.columnExists(sel->tableName, sel->orderByColumn)) {
                 throw std::runtime_error("Unknown column '" + sel->orderByColumn +

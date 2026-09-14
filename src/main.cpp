@@ -1,3 +1,4 @@
+// main.cpp - Entry point for MiniSQL compiler pipeline (lexer -> parser -> semantic analyzer).
 #include "lexer.h"
 #include "parser.h"
 #include "semantic.h"
@@ -6,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 
+// Recursively prints formatted representation of expression AST nodes.
 void printExpr(const std::shared_ptr<Expr>& e, int indent) {
     std::string pad(indent, ' ');
     if (!e) return;
@@ -22,6 +24,7 @@ void printExpr(const std::shared_ptr<Expr>& e, int indent) {
     }
 }
 
+// Formats and prints parsed SQL statement AST structure to standard output.
 void printStmt(const Stmt& s) {
     if (s.type == StmtType::CREATE_TABLE) {
         std::cout << "CreateTableStmt\n  table: " << s.createStmt->tableName << "\n  columns: ";
@@ -43,15 +46,19 @@ void printStmt(const Stmt& s) {
     std::cout << "----\n";
 }
 
+// Executes full MiniSQL pipeline (Lexing -> Parsing -> Semantic Validation) on SQL string input.
 void runQuery(const std::string& sql) {
     Catalog catalog;
     try {
+        // 1. Lexical Analysis
         Lexer lexer(sql);
         auto tokens = lexer.tokenize();
 
+        // 2. Syntax Analysis (Parsing)
         Parser parser(tokens);
         auto stmts = parser.parseProgram();
 
+        // 3. Semantic Analysis & Validation
         for (auto& s : stmts) {
             checkStatement(s, catalog);
             printStmt(s);
@@ -62,8 +69,10 @@ void runQuery(const std::string& sql) {
     }
 }
 
+// Program main entrypoint supporting command-line SQL file execution or fallback to demo queries.
 int main(int argc, char* argv[]) {
     if (argc > 1) {
+        // Execute SQL file passed via command line argument
         std::ifstream file(argv[1]);
         if (!file) {
             std::cout << "Could not open file: " << argv[1] << "\n";
@@ -73,6 +82,7 @@ int main(int argc, char* argv[]) {
         buffer << file.rdbuf();
         runQuery(buffer.str());
     } else {
+        // Fallback execution of default sample SQL queries
         std::string defaultSql =
             "CREATE TABLE students (name, age, grade);"
             "INSERT INTO students VALUES ('Alice', 22, 'A');"

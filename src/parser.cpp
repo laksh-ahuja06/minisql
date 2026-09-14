@@ -1,19 +1,23 @@
+// parser.cpp - Implementation of recursive descent parser for MiniSQL AST construction.
 #include "parser.h"
 #include <stdexcept>
 
 Parser::Parser(const std::vector<Token>& toks) : tokens(toks) {}
 
+// Stream navigation helpers
 Token Parser::peek() { return tokens[pos]; }
 Token Parser::advance() { return tokens[pos++]; }
 bool Parser::isAtEnd() { return peek().type == TokenType::END_OF_FILE; }
 bool Parser::check(TokenType type) { return peek().type == type; }
 
+// Asserts current token matches expected type; advances if true, throws exception if false.
 Token Parser::expect(TokenType type, const std::string& errMsg) {
     if (check(type)) return advance();
     throw std::runtime_error("Parse error at line " + std::to_string(peek().line) +
                               ": " + errMsg + " (got '" + peek().text + "')");
 }
 
+// Parses all statements in the token stream until END_OF_FILE is reached.
 std::vector<Stmt> Parser::parseProgram() {
     std::vector<Stmt> stmts;
     while (!isAtEnd()) {
@@ -22,6 +26,7 @@ std::vector<Stmt> Parser::parseProgram() {
     return stmts;
 }
 
+// Routes token stream to specific statement parser based on leading keyword.
 Stmt Parser::parseStatement() {
     if (check(TokenType::CREATE)) return parseCreateTable();
     if (check(TokenType::INSERT)) return parseInsert();
@@ -30,6 +35,7 @@ Stmt Parser::parseStatement() {
                               ": expected CREATE, INSERT, or SELECT (got '" + peek().text + "')");
 }
 
+// Parses CREATE TABLE <name> (<col1>, <col2>, ...);
 Stmt Parser::parseCreateTable() {
     expect(TokenType::CREATE, "expected CREATE");
     expect(TokenType::TABLE, "expected TABLE");
@@ -52,6 +58,7 @@ Stmt Parser::parseCreateTable() {
     return s;
 }
 
+// Parses INSERT INTO <table_name> VALUES (<val1>, <val2>, ...);
 Stmt Parser::parseInsert() {
     expect(TokenType::INSERT, "expected INSERT");
     expect(TokenType::INTO, "expected INTO");
@@ -81,6 +88,7 @@ Stmt Parser::parseInsert() {
     return s;
 }
 
+// Parses SELECT (* | <cols>) FROM <table> [WHERE <expr>] [ORDER BY <col>];
 Stmt Parser::parseSelect() {
     expect(TokenType::SELECT, "expected SELECT");
 
@@ -99,12 +107,14 @@ Stmt Parser::parseSelect() {
     expect(TokenType::FROM, "expected FROM");
     stmt->tableName = expect(TokenType::IDENTIFIER, "expected table name").text;
 
+    // Optional WHERE clause
     if (check(TokenType::WHERE)) {
         advance();
         stmt->hasWhere = true;
         stmt->whereClause = parseOr();
     }
 
+    // Optional ORDER BY clause
     if (check(TokenType::ORDER)) {
         advance();
         expect(TokenType::BY, "expected BY after ORDER");
@@ -120,13 +130,14 @@ Stmt Parser::parseSelect() {
     return s;
 }
 
-/* Grammar for WHERE, lowest to highest precedence:
+/* Grammar for WHERE clause precedence (lowest to highest):
      or_expr   -> and_expr (OR and_expr)*
      and_expr  -> comparison (AND comparison)*
      comparison-> operand (= | > | < | >= | <=) operand
      operand   -> IDENTIFIER | NUMBER | STRING
 */
 
+// Parses logical OR operations (lowest precedence in WHERE expression grammar).
 std::shared_ptr<Expr> Parser::parseOr() {
     auto left = parseAnd();
     while (check(TokenType::OR)) {
@@ -142,6 +153,7 @@ std::shared_ptr<Expr> Parser::parseOr() {
     return left;
 }
 
+// Parses logical AND operations.
 std::shared_ptr<Expr> Parser::parseAnd() {
     auto left = parseComparison();
     while (check(TokenType::AND)) {
@@ -157,6 +169,7 @@ std::shared_ptr<Expr> Parser::parseAnd() {
     return left;
 }
 
+// Parses binary comparison operations (=, >, <, >=, <=).
 std::shared_ptr<Expr> Parser::parseComparison() {
     auto left = parseOperand();
 
@@ -180,6 +193,7 @@ std::shared_ptr<Expr> Parser::parseComparison() {
     return node;
 }
 
+// Parses leaf operand expression nodes (column references, numbers, strings).
 std::shared_ptr<Expr> Parser::parseOperand() {
     auto node = std::make_shared<Expr>();
     if (check(TokenType::IDENTIFIER)) {
