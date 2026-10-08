@@ -3,6 +3,8 @@
 #include "parser.h"
 #include "semantic.h"
 #include "catalog.h"
+#include "storage.h"
+#include "executor.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -46,9 +48,12 @@ void printStmt(const Stmt& s) {
     std::cout << "----\n";
 }
 
-// Executes full MiniSQL pipeline (Lexing -> Parsing -> Semantic Validation) on SQL string input.
+// Executes full MiniSQL pipeline (Lexing -> Parsing -> Semantic Validation -> Execution) on SQL string input.
 void runQuery(const std::string& sql) {
     Catalog catalog;
+    Storage storage;
+    Executor executor(storage, catalog);
+
     try {
         // 1. Lexical Analysis
         Lexer lexer(sql);
@@ -58,12 +63,11 @@ void runQuery(const std::string& sql) {
         Parser parser(tokens);
         auto stmts = parser.parseProgram();
 
-        // 3. Semantic Analysis & Validation
+        // 3. Semantic Analysis & Execution
         for (auto& s : stmts) {
             checkStatement(s, catalog);
-            printStmt(s);
+            executor.execute(s);
         }
-        std::cout << "All statements parsed and validated successfully.\n";
     } catch (const std::exception& e) {
         std::cout << "ERROR: " << e.what() << "\n";
     }

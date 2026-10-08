@@ -32,18 +32,22 @@
   - Tested against valid queries and multiple deliberate error cases (unknown table,
     unknown column in SELECT/WHERE/ORDER BY, INSERT value count mismatch, duplicate
     table creation) — all caught with clear error messages
-- Full pipeline verified end-to-end: lexer -> parser -> semantic analyzer, run via CLI
-  against real .sql test files
+- Storage Engine implemented (storage.h / storage.cpp)
+  - Manages in-memory table structures and data row collections (`Table` struct with schema and rows)
+- Execution Engine implemented (executor.h / executor.cpp)
+  - Executes CREATE TABLE to allocate memory tables
+  - Executes INSERT INTO to store row data
+  - Executes SELECT with column projection (or `*`), `WHERE` clause expression evaluation (supporting numeric and string comparison operators `=, !=, <, >, <=, >=` with `AND`/`OR` logic), and `ORDER BY` sorting
+  - Formats query results into clean, aligned ASCII tables with row counts
+- Full end-to-end pipeline verified: Lexer -> Parser -> Semantic Analyzer -> Storage & Execution Engine, tested via CLI against `.sql` test scripts in `tests/`
 
 ## Current status
 - Lexer: complete
 - Parser: complete for full Core grammar
 - Semantic Analyzer: complete
-- Execution Engine: not started
+- Storage Engine: complete
+- Execution Engine: complete
 
 ## Next steps
-- Build in-memory storage (table name -> rows of data)
-- Implement execution engine: CREATE TABLE / INSERT populate storage, SELECT filters
-  (WHERE), projects (column list), and sorts (ORDER BY) rows, then prints results
-- Expand tests/ folder with a full set of valid and error-case .sql files
-- Prepare report and live demo for review
+- Prepare documentation and demonstration reports
+- (Optional) Implement disk/file persistence in `data/` or additional SQL features (e.g. DELETE, UPDATE, joins)
