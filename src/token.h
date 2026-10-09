@@ -9,7 +9,7 @@ enum class TokenType {
     // Keywords
     SELECT, FROM, WHERE, ORDER, BY,
     CREATE, TABLE, INSERT, INTO, VALUES,
-    AND, OR,
+    AND, OR, DELETE, UPDATE, SET,
 
     // Literal values and identifiers
     IDENTIFIER, NUMBER, STRING,
