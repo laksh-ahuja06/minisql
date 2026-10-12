@@ -44,6 +44,14 @@ void printStmt(const Stmt& s) {
         std::cout << "\n  table: " << sel->tableName << "\n";
         if (sel->hasWhere) { std::cout << "  where:\n"; printExpr(sel->whereClause, 4); }
         if (sel->hasOrderBy) std::cout << "  orderBy: " << sel->orderByColumn << "\n";
+    } else if (s.type == StmtType::DELETE) {
+        std::cout << "DeleteStmt\n  table: " << s.deleteStmt->tableName << "\n";
+        if (s.deleteStmt->hasWhere) { std::cout << "  where:\n"; printExpr(s.deleteStmt->whereClause, 4); }
+    } else if (s.type == StmtType::UPDATE) {
+        std::cout << "UpdateStmt\n  table: " << s.updateStmt->tableName
+                  << "\n  col: " << s.updateStmt->columnName
+                  << " = " << s.updateStmt->newValue << "\n";
+        if (s.updateStmt->hasWhere) { std::cout << "  where:\n"; printExpr(s.updateStmt->whereClause, 4); }
     }
     std::cout << "----\n";
 }

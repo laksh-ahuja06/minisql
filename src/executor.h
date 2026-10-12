@@ -32,6 +32,8 @@ private:
     void executeCreate(const CreateTableStmt& stmt);
     void executeInsert(const InsertStmt& stmt);
     void executeSelect(const SelectStmt& stmt);
+    void executeDelete(const DeleteStmt& stmt);
+    void executeUpdate(const UpdateStmt& stmt);
 
     bool evaluateWhere(const std::shared_ptr<Expr>& expr,
                        const std::vector<std::string>& row,

@@ -31,8 +31,10 @@ Stmt Parser::parseStatement() {
     if (check(TokenType::CREATE)) return parseCreateTable();
     if (check(TokenType::INSERT)) return parseInsert();
     if (check(TokenType::SELECT)) return parseSelect();
+    if (check(TokenType::DELETE)) return parseDelete();
+    if (check(TokenType::UPDATE)) return parseUpdate();
     throw std::runtime_error("Parse error at line " + std::to_string(peek().line) +
-                              ": expected CREATE, INSERT, or SELECT (got '" + peek().text + "')");
+                              ": expected CREATE, INSERT, SELECT, DELETE, or UPDATE (got '" + peek().text + "')");
 }
 
 // Parses CREATE TABLE <name> (<col1>, <col2>, ...);
@@ -127,6 +129,62 @@ Stmt Parser::parseSelect() {
     Stmt s;
     s.type = StmtType::SELECT;
     s.selectStmt = stmt;
+    return s;
+}
+
+// Parses DELETE FROM <table_name> [WHERE <expr>];
+Stmt Parser::parseDelete() {
+    expect(TokenType::DELETE, "expected DELETE");
+    expect(TokenType::FROM, "expected FROM");
+
+    auto stmt = std::make_shared<DeleteStmt>();
+    stmt->tableName = expect(TokenType::IDENTIFIER, "expected table name").text;
+
+    // Optional WHERE clause
+    if (check(TokenType::WHERE)) {
+        advance();
+        stmt->hasWhere = true;
+        stmt->whereClause = parseOr();
+    }
+
+    expect(TokenType::SEMICOLON, "expected ';'");
+
+    Stmt s;
+    s.type = StmtType::DELETE;
+    s.deleteStmt = stmt;
+    return s;
+}
+
+// Parses UPDATE <table_name> SET <column_name> = <val> [WHERE <expr>];
+Stmt Parser::parseUpdate() {
+    expect(TokenType::UPDATE, "expected UPDATE");
+
+    auto stmt = std::make_shared<UpdateStmt>();
+    stmt->tableName = expect(TokenType::IDENTIFIER, "expected table name").text;
+
+    expect(TokenType::SET, "expected SET");
+    stmt->columnName = expect(TokenType::IDENTIFIER, "expected column name").text;
+    expect(TokenType::EQUALS, "expected '='");
+
+    if (check(TokenType::NUMBER) || check(TokenType::STRING)) {
+        stmt->newValue = advance().text;
+    } else {
+        throw std::runtime_error("Parse error at line " + std::to_string(peek().line) +
+                                  ": expected a number or string value for UPDATE");
+    }
+
+    // Optional WHERE clause
+    if (check(TokenType::WHERE)) {
+        advance();
+        stmt->hasWhere = true;
+        stmt->whereClause = parseOr();
+    }
+
+    expect(TokenType::SEMICOLON, "expected ';'");
+
+    Stmt s;
+    s.type = StmtType::UPDATE;
+    s.updateStmt = stmt;
     return s;
 }
 

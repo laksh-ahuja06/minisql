@@ -15,6 +15,10 @@ void Executor::execute(const Stmt& stmt) {
         executeInsert(*stmt.insertStmt);
     } else if (stmt.type == StmtType::SELECT) {
         executeSelect(*stmt.selectStmt);
+    } else if (stmt.type == StmtType::DELETE) {
+        executeDelete(*stmt.deleteStmt);
+    } else if (stmt.type == StmtType::UPDATE) {
+        executeUpdate(*stmt.updateStmt);
     }
 }
 
@@ -26,6 +30,45 @@ void Executor::executeCreate(const CreateTableStmt& stmt) {
 void Executor::executeInsert(const InsertStmt& stmt) {
     storage.insertRow(stmt.tableName, stmt.values);
     std::cout << "1 row inserted into '" << stmt.tableName << "'.\n";
+}
+
+void Executor::executeDelete(const DeleteStmt& stmt) {
+    Table& table = storage.getTable(stmt.tableName);
+    size_t initialCount = table.rows.size();
+
+    std::vector<std::vector<std::string>> remainingRows;
+    for (const auto& row : table.rows) {
+        bool matches = !stmt.hasWhere || evaluateWhere(stmt.whereClause, row, table.columns);
+        if (!matches) {
+            remainingRows.push_back(row);
+        }
+    }
+    size_t deletedCount = initialCount - remainingRows.size();
+    table.rows = std::move(remainingRows);
+    if (deletedCount == 1) {
+        std::cout << "1 row deleted from '" << stmt.tableName << "'.\n";
+    } else {
+        std::cout << deletedCount << " rows deleted from '" << stmt.tableName << "'.\n";
+    }
+}
+
+void Executor::executeUpdate(const UpdateStmt& stmt) {
+    Table& table = storage.getTable(stmt.tableName);
+    auto colIt = std::find(table.columns.begin(), table.columns.end(), stmt.columnName);
+    size_t colIdx = std::distance(table.columns.begin(), colIt);
+
+    size_t updatedCount = 0;
+    for (auto& row : table.rows) {
+        if (!stmt.hasWhere || evaluateWhere(stmt.whereClause, row, table.columns)) {
+            row[colIdx] = stmt.newValue;
+            updatedCount++;
+        }
+    }
+    if (updatedCount == 1) {
+        std::cout << "1 row updated in '" << stmt.tableName << "'.\n";
+    } else {
+        std::cout << updatedCount << " rows updated in '" << stmt.tableName << "'.\n";
+    }
 }
 
 void Executor::executeSelect(const SelectStmt& stmt) {

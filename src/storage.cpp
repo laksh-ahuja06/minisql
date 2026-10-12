@@ -30,6 +30,14 @@ const Table& Storage::getTable(const std::string& name) const {
     return it->second;
 }
 
+Table& Storage::getTable(const std::string& name) {
+    auto it = tables.find(name);
+    if (it == tables.end()) {
+        throw std::runtime_error("Storage error: table '" + name + "' not found");
+    }
+    return it->second;
+}
+
 bool Storage::tableExists(const std::string& name) const {
     return tables.find(name) != tables.end();
 }
