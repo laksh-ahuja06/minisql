@@ -68,5 +68,32 @@ void checkStatement(const Stmt& stmt, Catalog& catalog) {
                                           "' in ORDER BY for table '" + sel->tableName + "'");
             }
         }
+
+    } else if (stmt.type == StmtType::DELETE) {
+        auto& del = stmt.deleteStmt;
+        // Verify target table exists
+        if (!catalog.tableExists(del->tableName)) {
+            throw std::runtime_error("Unknown table '" + del->tableName + "'");
+        }
+        // Validate column references in WHERE clause
+        if (del->hasWhere) {
+            checkExpr(del->whereClause, del->tableName, catalog);
+        }
+
+    } else if (stmt.type == StmtType::UPDATE) {
+        auto& upd = stmt.updateStmt;
+        // Verify target table exists
+        if (!catalog.tableExists(upd->tableName)) {
+            throw std::runtime_error("Unknown table '" + upd->tableName + "'");
+        }
+        // Verify target column exists in table
+        if (!catalog.columnExists(upd->tableName, upd->columnName)) {
+            throw std::runtime_error("Unknown column '" + upd->columnName +
+                                      "' in table '" + upd->tableName + "'");
+        }
+        // Validate column references in WHERE clause
+        if (upd->hasWhere) {
+            checkExpr(upd->whereClause, upd->tableName, catalog);
+        }
     }
 }

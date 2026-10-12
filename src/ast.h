@@ -61,12 +61,36 @@ struct SelectStmt {
 };
 
 /**
+ * @brief Represents a parsed DELETE statement.
+ * Example: DELETE FROM students WHERE age > 25;
+ */
+struct DeleteStmt {
+    std::string tableName;              ///< Target table name
+    bool hasWhere = false;              ///< True if a WHERE clause is present
+    std::shared_ptr<Expr> whereClause;  ///< Root node of the WHERE expression tree
+};
+
+/**
+ * @brief Represents a parsed UPDATE statement.
+ * Example: UPDATE students SET grade = 'A' WHERE name = 'Alice';
+ */
+struct UpdateStmt {
+    std::string tableName;              ///< Target table name
+    std::string columnName;             ///< Column to update
+    std::string newValue;               ///< New literal value to set
+    bool hasWhere = false;              ///< True if a WHERE clause is present
+    std::shared_ptr<Expr> whereClause;  ///< Root node of the WHERE expression tree
+};
+
+/**
  * @brief Categorizes top-level SQL statement types supported by MiniSQL.
  */
 enum class StmtType {
     CREATE_TABLE,   ///< DDL table creation
     INSERT,         ///< DML row insertion
-    SELECT          ///< DML data query
+    SELECT,         ///< DML data query
+    DELETE,         ///< DML row deletion
+    UPDATE          ///< DML row update
 };
 
 /**
@@ -77,4 +101,6 @@ struct Stmt {
     std::shared_ptr<CreateTableStmt> createStmt;    ///< Populated if type == CREATE_TABLE
     std::shared_ptr<InsertStmt> insertStmt;          ///< Populated if type == INSERT
     std::shared_ptr<SelectStmt> selectStmt;          ///< Populated if type == SELECT
+    std::shared_ptr<DeleteStmt> deleteStmt;          ///< Populated if type == DELETE
+    std::shared_ptr<UpdateStmt> updateStmt;          ///< Populated if type == UPDATE
 };

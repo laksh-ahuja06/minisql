@@ -54,6 +54,12 @@ private:
     /// Parses a SELECT statement.
     Stmt parseSelect();
 
+    /// Parses a DELETE statement.
+    Stmt parseDelete();
+
+    /// Parses an UPDATE statement.
+    Stmt parseUpdate();
+
     // Expression parsing hierarchy (lowest to highest precedence):
     /// Parses OR expressions.
     std::shared_ptr<Expr> parseOr();

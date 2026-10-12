@@ -72,7 +72,9 @@ Token Lexer::makeIdentifierOrKeyword() {
         {"BY", TokenType::BY}, {"AND", TokenType::AND},
         {"OR", TokenType::OR}, {"CREATE", TokenType::CREATE},
         {"TABLE", TokenType::TABLE}, {"INSERT", TokenType::INSERT},
-        {"INTO", TokenType::INTO}, {"VALUES", TokenType::VALUES}
+        {"INTO", TokenType::INTO}, {"VALUES", TokenType::VALUES},
+        {"DELETE", TokenType::DELETE}, {"UPDATE", TokenType::UPDATE},
+        {"SET", TokenType::SET}
     };
 
     // Convert text to uppercase for keyword comparison

@@ -14,6 +14,9 @@ std::string tokenTypeToString(TokenType type) {
         case TokenType::INSERT: return "INSERT";
         case TokenType::INTO: return "INTO";
         case TokenType::VALUES: return "VALUES";
+        case TokenType::DELETE: return "DELETE";
+        case TokenType::UPDATE: return "UPDATE";
+        case TokenType::SET: return "SET";
         case TokenType::AND: return "AND";
         case TokenType::OR: return "OR";
         case TokenType::IDENTIFIER: return "IDENTIFIER";

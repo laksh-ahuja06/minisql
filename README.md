@@ -1,18 +1,18 @@
 # MiniSQL — Compiler & Execution Engine
 
-A lightweight, modular **SQL Compiler, Query Parser, Semantic Analyzer, and In-Memory Execution Engine** written in **C++17**.
+A lightweight, modular **SQL Compiler, Query Parser, Semantic Analyzer, and In-Memory Execution Engine** written in **C++17** supporting full **CRUD (Create, Read, Update, Delete)** operations.
 
-MiniSQL parses, semantically validates, and executes core SQL statements (`CREATE TABLE`, `INSERT INTO`, and `SELECT` with complex `WHERE` logic and `ORDER BY` sorting), producing clean, aligned ASCII tabular output.
+MiniSQL parses, semantically validates, and executes core SQL statements (`CREATE TABLE`, `INSERT INTO`, `SELECT`, `UPDATE`, and `DELETE FROM` with compound `WHERE` logic and `ORDER BY` sorting), producing clean, aligned ASCII tabular output.
 
 ---
 
 ## 🌟 Key Features
 
-* **Lexical Analyzer (Lexer)**: Tokenizes SQL keywords, identifiers, numbers, quoted strings, comparison operators, and skips `--` single-line comments.
+* **Lexical Analyzer (Lexer)**: Tokenizes SQL keywords (`SELECT`, `FROM`, `WHERE`, `ORDER`, `BY`, `CREATE`, `TABLE`, `INSERT`, `INTO`, `VALUES`, `UPDATE`, `SET`, `DELETE`, `AND`, `OR`), identifiers, numbers, quoted strings, comparison operators, and skips `--` single-line comments.
 * **Recursive-Descent Parser**: Builds Abstract Syntax Trees (AST) for SQL queries while maintaining operator precedence (`AND` / `OR` in `WHERE` clauses).
-* **Schema Catalog & Semantic Analyzer**: Validates table and column definitions, prevents duplicate table creation, and ensures column/value count matching before execution.
-* **In-Memory Storage Engine**: Manages dynamic schemas and table row collections in memory.
-* **Execution Engine**: Evaluates binary logic and comparisons (`=`, `!=`, `<`, `>`, `<=`, `>=`), filters rows, sorts results by target columns, and formats output as aligned ASCII tables.
+* **Schema Catalog & Semantic Analyzer**: Validates table and column definitions, prevents duplicate table creation, checks target columns in `UPDATE`, and ensures column/value count matching before execution.
+* **In-Memory Storage Engine**: Manages dynamic schemas and table row collections in memory with fast record lookup, updates, and removals.
+* **Execution Engine**: Evaluates binary logic and comparisons (`=`, `!=`, `<`, `>`, `<=`, `>=`), filters rows, sorts results by target columns, updates target fields, deletes matching records, and formats output as aligned ASCII tables.
 * **Multi-Statement / Script Execution**: Processes full multi-query `.sql` files sequentially with persistent in-memory state across statements.
 
 ---
@@ -48,27 +48,44 @@ SQL File / Query String
 
 ---
 
-## 💻 Supported SQL Subset
+## 💻 Supported SQL Subset (CRUD)
 
-### 1. Create Table
+### 1. Create Table (Create)
 ```sql
-CREATE TABLE students (id, name, age, gpa);
+CREATE TABLE employees (id, name, department, salary);
 ```
 
-### 2. Insert Data
+### 2. Insert Data (Create)
 ```sql
-INSERT INTO students VALUES (1, 'Alice', 22, 3.8);
-INSERT INTO students VALUES (2, 'Bob', 19, 3.2);
+INSERT INTO employees VALUES (1, 'Alice', 'Engineering', 75000);
+INSERT INTO employees VALUES (2, 'Bob', 'Marketing', 50000);
 ```
 
-### 3. Query & Filter Data
+### 3. Query & Filter Data (Read)
 ```sql
 -- Select all columns
-SELECT * FROM students;
+SELECT * FROM employees;
 
 -- Projected columns with compound WHERE condition and ORDER BY sorting
-SELECT name, age, gpa FROM students WHERE age >= 20 AND gpa > 3.4 ORDER BY gpa;
-SELECT name, age FROM students WHERE age < 20 OR age > 23 ORDER BY age;
+SELECT name, department, salary FROM employees WHERE salary >= 60000 AND department = 'Engineering' ORDER BY salary;
+```
+
+### 4. Update Data (Update)
+```sql
+-- Update with WHERE filter
+UPDATE employees SET salary = 80000 WHERE name = 'Alice';
+
+-- Bulk update
+UPDATE employees SET department = 'Sales';
+```
+
+### 5. Delete Data (Delete)
+```sql
+-- Delete matching records
+DELETE FROM employees WHERE department = 'Marketing' AND salary <= 50000;
+
+-- Delete all records in table
+DELETE FROM employees;
 ```
 
 ---
@@ -102,6 +119,12 @@ SELECT name, age FROM students WHERE age < 20 OR age > 23 ORDER BY age;
 Execute a multi-statement SQL script file:
 
 ```bash
+./sqlcompiler tests/crud_test.sql
+```
+
+Or run the multi-table university tracking case study:
+
+```bash
 ./sqlcompiler tests/case_study.sql
 ```
 
@@ -115,32 +138,49 @@ Or run without arguments to execute built-in fallback queries:
 
 ## 📊 Sample Execution Output
 
-Running `./sqlcompiler tests/case_study.sql`:
+Running `./sqlcompiler tests/crud_test.sql`:
 
 ```text
-Table 'departments' created successfully.
-Table 'courses' created successfully.
-Table 'students' created successfully.
-1 row inserted into 'departments'.
-...
-+---------+------------------------+--------+
-| dept_id | dept_name              | budget |
-+---------+------------------------+--------+
-| 3       | Mathematics            | 300000 |
-| 2       | Electrical Engineering | 450000 |
-| 1       | Computer Science       | 500000 |
-+---------+------------------------+--------+
-(3 rows)
+Table 'employees' created successfully.
+1 row inserted into 'employees'.
+1 row inserted into 'employees'.
+1 row inserted into 'employees'.
+1 row inserted into 'employees'.
+1 row inserted into 'employees'.
++----+---------+-------------+--------+
+| id | name    | department  | salary |
++----+---------+-------------+--------+
+| 1  | Alice   | Engineering | 75000  |
+| 2  | Bob     | Marketing   | 50000  |
+| 3  | Charlie | Engineering | 68000  |
+| 4  | David   | Sales       | 55000  |
+| 5  | Eve     | Marketing   | 52000  |
++----+---------+-------------+--------+
+(5 rows)
 
-+-----------------+---------+------+------+
-| name            | dept_id | gpa  | year |
-+-----------------+---------+------+------+
-| Fiona Gallagher | 2       | 3.60 | 4    |
-| Diana Prince    | 3       | 3.75 | 3    |
-| Alice Johnson   | 1       | 3.85 | 3    |
-| Charlie Brown   | 2       | 3.92 | 4    |
-+-----------------+---------+------+------+
-(4 rows)
+1 row updated in 'employees'.
+1 row updated in 'employees'.
++----+---------+-------------+--------+
+| id | name    | department  | salary |
++----+---------+-------------+--------+
+| 1  | Alice   | Engineering | 75000  |
+| 2  | Bob     | Sales       | 50000  |
+| 3  | Charlie | Engineering | 72000  |
+| 4  | David   | Sales       | 55000  |
+| 5  | Eve     | Marketing   | 52000  |
++----+---------+-------------+--------+
+(5 rows)
+
+1 row deleted from 'employees'.
+1 row deleted from 'employees'.
++---------+-------------+--------+
+| name    | department  | salary |
++---------+-------------+--------+
+| Eve     | Marketing   | 52000  |
+| David   | Sales       | 55000  |
+| Charlie | Engineering | 72000  |
++---------+-------------+--------+
+(3 rows)
 ```
 
 ---
@@ -150,7 +190,7 @@ Table 'students' created successfully.
 ```text
 minisql/
 ├── src/
-│   ├── ast.h           # AST node definitions
+│   ├── ast.h           # AST node definitions (Create, Insert, Select, Update, Delete)
 │   ├── catalog.h/cpp   # Schema catalog tracking
 │   ├── executor.h/cpp  # Query execution engine & ASCII renderer
 │   ├── lexer.h/cpp     # Lexical analysis & tokenization
@@ -160,6 +200,7 @@ minisql/
 │   ├── storage.h/cpp   # In-memory table & row storage
 │   └── token.h/cpp     # Token type definitions
 ├── tests/
+│   ├── crud_test.sql   # Full CRUD lifecycle test script
 │   ├── case_study.sql  # Multi-table university tracking test case
 │   ├── sample1.sql     # Analytical queries test script
 │   ├── sample2.sql     # Schema test script

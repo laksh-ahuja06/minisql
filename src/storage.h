@@ -41,6 +41,13 @@ public:
     const Table& getTable(const std::string& name) const;
 
     /**
+     * @brief Retrieves a mutable reference to a stored table.
+     * @param name Table name.
+     * @return Mutable reference to Table struct.
+     */
+    Table& getTable(const std::string& name);
+
+    /**
      * @brief Checks if a table exists in storage.
      * @param name Table name.
      * @return true if table exists, false otherwise.
