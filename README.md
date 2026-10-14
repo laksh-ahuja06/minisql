@@ -13,6 +13,7 @@ MiniSQL parses, semantically validates, and executes core SQL statements (`CREAT
 * **Schema Catalog & Semantic Analyzer**: Validates table and column definitions, prevents duplicate table creation, checks target columns in `UPDATE`, and ensures column/value count matching before execution.
 * **In-Memory Storage Engine**: Manages dynamic schemas and table row collections in memory with fast record lookup, updates, and removals.
 * **Execution Engine**: Evaluates binary logic and comparisons (`=`, `!=`, `<`, `>`, `<=`, `>=`), filters rows, sorts results by target columns, updates target fields, deletes matching records, and formats output as aligned ASCII tables.
+* **Verbose Compiler Trace**: `--verbose` prints every phase — the token stream, the AST drawn as a tree (`├──` / `└──`), and each semantic check — before the results.
 * **Multi-Statement / Script Execution**: Processes full multi-query `.sql` files sequentially with persistent in-memory state across statements.
 
 ---
@@ -21,42 +22,13 @@ MiniSQL parses, semantically validates, and executes core SQL statements (`CREAT
 
 ![MiniSQL architecture diagram](docs/architecture.svg)
 
-The SQL text flows down the centre (Lexer → Parser → Semantic Analyzer → Executor); the side boxes are the shared modules each stage uses. In short:
-
-```text
-SQL File / Query String
-         │
-         ▼
- ┌───────────────┐
- │ Lexical Analyzer (lexer.cpp)
- └───────┬───────┘
-         │ Tokens
-         ▼
- ┌───────────────┐
- │ Parser / AST Builder (parser.cpp)
- └───────┬───────┘
-         │ AST Nodes
-         ▼
- ┌───────────────┐
- │ Semantic Analyzer (semantic.cpp) <──> Schema Catalog (catalog.cpp)
- └───────┬───────┘
-         │ Validated AST
-         ▼
- ┌───────────────┐
- │ Execution Engine (executor.cpp)  <──> Storage Engine (storage.cpp)
- └───────┬───────┘
-         │ Result Evaluation
-         ▼
- Formatted ASCII Table Output
-```
-
 ---
 
 ## 📄 Source Files
 
 | File | What it does |
 |---|---|
-| [`main.cpp`](src/main.cpp) | Entry point: reads the `.sql` file and runs it through the lexer, parser, semantic analyzer, and executor, printing any errors. |
+| [`main.cpp`](src/main.cpp) | Entry point: reads the `.sql` file and runs it through the lexer, parser, semantic analyzer, and executor; with `--verbose`, prints the tokens and the AST as a tree. |
 | [`token.cpp`](src/token.cpp) | Converts each `TokenType` into its readable name (e.g. `IDENTIFIER`) for debug output. |
 | [`lexer.cpp`](src/lexer.cpp) | Breaks raw SQL text into tokens (keywords, identifiers, numbers, strings, operators), skipping whitespace and `--` comments. |
 | [`parser.cpp`](src/parser.cpp) | Recursive-descent parser that turns the tokens into an AST, with `OR` < `AND` < comparison precedence in `WHERE`. |
@@ -69,16 +41,25 @@ SQL File / Query String
 
 ## 💻 Supported SQL Subset (CRUD)
 
+Keywords are case-insensitive (`SELECT` = `select`), every statement ends with `;`, and `--` starts a single-line comment.
+
 ### 1. Create Table (Create)
 ```sql
+-- Column names only
 CREATE TABLE employees (id, name, department, salary);
+
+-- Optional column types are also accepted, including sizes
+CREATE TABLE employees (id INT, name VARCHAR(50), department VARCHAR(30), salary DECIMAL(10, 2));
 ```
+> Column types are parsed but not enforced: every value is stored as text and compared as a number when it looks like one.
 
 ### 2. Insert Data (Create)
 ```sql
 INSERT INTO employees VALUES (1, 'Alice', 'Engineering', 75000);
 INSERT INTO employees VALUES (2, 'Bob', 'Marketing', 50000);
+INSERT INTO employees VALUES (3, 'O\'Neil', 'Sales', 55000.50);   -- \' escapes a quote
 ```
+A value must be given for every column, in table order.
 
 ### 3. Query & Filter Data (Read)
 ```sql
@@ -87,6 +68,10 @@ SELECT * FROM employees;
 
 -- Projected columns with compound WHERE condition and ORDER BY sorting
 SELECT name, department, salary FROM employees WHERE salary >= 60000 AND department = 'Engineering' ORDER BY salary;
+
+-- Not-equal (!= or <>) combined with OR
+SELECT name FROM employees WHERE department != 'Sales' OR salary < 52000 ORDER BY name;
+SELECT name FROM employees WHERE department <> 'Engineering';
 ```
 
 ### 4. Update Data (Update)
@@ -106,6 +91,23 @@ DELETE FROM employees WHERE department = 'Marketing' AND salary <= 50000;
 -- Delete all records in table
 DELETE FROM employees;
 ```
+
+### `WHERE` Clause Reference
+
+| Feature | Supported |
+|---|---|
+| Comparison operators | `=`, `!=`, `<>`, `<`, `>`, `<=`, `>=` |
+| Logical operators | `AND`, `OR` (`AND` binds tighter than `OR`) |
+| Operands | column names, numbers (`42`, `3.5`), strings (`'Alice'`) |
+| Comparison rules | numeric if both sides are numbers, otherwise alphabetical |
+
+### Not Supported (yet)
+
+* Parentheses in `WHERE`, e.g. `WHERE (a = 1 OR b = 2) AND c = 3`
+* Updating more than one column per `UPDATE` (`SET a = 1, b = 2`)
+* `ORDER BY ... DESC` (sorting is ascending only), `LIMIT`, aggregates (`COUNT`, `SUM`, ...)
+* Column lists in `INSERT` (`INSERT INTO t (a, b) VALUES ...`) and negative numbers
+* `JOIN`, `DROP TABLE`, `NULL`, and saving data between runs (each run starts with an empty database)
 
 ---
 
@@ -175,11 +177,13 @@ Each run starts with an empty in-memory database, so every script should begin w
 
 ### 4. View Every Compiler Phase (Verbose Mode)
 
-Add `--verbose` (or `-v`) to print the token stream (lexical analysis), the AST (syntax analysis), and each semantic check before the results:
+Add `--verbose` (or `-v`) to print the token stream (lexical analysis), the AST as a tree (syntax analysis), and each semantic check before the results:
 
 ```bash
 ./sqlcompiler --verbose tests/sample1.sql
 ```
+
+The AST is printed with `Program` as the root and one branch per statement. In a `WHERE` tree, the operator closest to the root is evaluated last — e.g. `AND` sits above `>=` and `>` because it binds more loosely.
 
 ### 5. Reading the Output
 
@@ -278,21 +282,47 @@ LINE  TYPE          TEXT
 
 ========== PHASE 2: SYNTAX ANALYSIS (AST) ==========
 2 statement(s) parsed successfully.
-----
-CreateTableStmt
-  table: EMPLOYEE
-  columns: id NAME
-----
-InsertStmt
-  table: EMPLOYEE
-  values: 1 MILAN
-----
+
+Program
+├── CreateTableStmt
+│   ├── Table: EMPLOYEE
+│   └── Columns
+│       ├── id
+│       └── NAME
+└── InsertStmt
+    ├── Table: EMPLOYEE
+    └── Values
+        ├── 1
+        └── MILAN
 
 ========== PHASE 3 & 4: SEMANTIC ANALYSIS + EXECUTION ==========
 [Statement 1] semantic check: OK
 Table 'EMPLOYEE' created successfully.
 [Statement 2] semantic check: OK
 1 row inserted into 'EMPLOYEE'.
+```
+
+### AST Tree for a `WHERE` Query
+
+Phase 2 of `./sqlcompiler --verbose tests/sample1.sql`, showing the last statement — `SELECT name, age FROM students WHERE age < 20 OR age > 23 ORDER BY age;`:
+
+```text
+Program
+├── ...  (CreateTable, 5 × Insert, 2 earlier Selects)
+└── SelectStmt
+    ├── Columns
+    │   ├── name
+    │   └── age
+    ├── From: students
+    ├── Where
+    │   └── BinaryExpr (OR)
+    │       ├── BinaryExpr (<)
+    │       │   ├── ColumnRef: age
+    │       │   └── LiteralNum: 20
+    │       └── BinaryExpr (>)
+    │           ├── ColumnRef: age
+    │           └── LiteralNum: 23
+    └── OrderBy: age
 ```
 
 ### Error Example

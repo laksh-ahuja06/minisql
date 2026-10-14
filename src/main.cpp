@@ -15,51 +15,81 @@
 // make
 // ./sqlcompiler --verbose tests/sample1.sql
 
-// Recursively prints formatted representation of expression AST nodes.
-void printExpr(const std::shared_ptr<Expr>& e, int indent) {
-    std::string pad(indent, ' ');
-    if (!e) return;
-    if (e->type == ExprType::BINARY) {
-        std::cout << pad << "BinaryExpr(op=\"" << e->op << "\")\n";
-        printExpr(e->left, indent + 2);
-        printExpr(e->right, indent + 2);
-    } else if (e->type == ExprType::COLUMN_REF) {
-        std::cout << pad << "ColumnRef(" << e->columnName << ")\n";
-    } else if (e->type == ExprType::LITERAL_NUM) {
-        std::cout << pad << "LiteralNum(" << e->literalValue << ")\n";
-    } else if (e->type == ExprType::LITERAL_STR) {
-        std::cout << pad << "LiteralStr('" << e->literalValue << "')\n";
+// Generic display tree: each AST node is converted into a label plus child nodes, then drawn
+// with box-drawing connectors (like the `tree` command).
+struct TreeNode {
+    std::string label;
+    std::vector<TreeNode> children;
+};
+
+// Converts a WHERE expression into a display tree.
+TreeNode exprToTree(const std::shared_ptr<Expr>& e) {
+    if (!e) return {"(empty)", {}};
+    switch (e->type) {
+        case ExprType::BINARY:      return {"BinaryExpr (" + e->op + ")", {exprToTree(e->left), exprToTree(e->right)}};
+        case ExprType::COLUMN_REF:  return {"ColumnRef: " + e->columnName, {}};
+        case ExprType::LITERAL_NUM: return {"LiteralNum: " + e->literalValue, {}};
+        case ExprType::LITERAL_STR: return {"LiteralStr: '" + e->literalValue + "'", {}};
+    }
+    return {"(unknown)", {}};
+}
+
+// Builds a labelled node whose children are plain leaf strings (e.g. a column list).
+TreeNode listNode(const std::string& label, const std::vector<std::string>& items) {
+    TreeNode node{label, {}};
+    for (auto& item : items) node.children.push_back({item, {}});
+    return node;
+}
+
+// Converts a parsed statement into a display tree.
+TreeNode stmtToTree(const Stmt& s) {
+    if (s.type == StmtType::CREATE_TABLE) {
+        return {"CreateTableStmt", {{"Table: " + s.createStmt->tableName, {}},
+                                    listNode("Columns", s.createStmt->columns)}};
+    }
+    if (s.type == StmtType::INSERT) {
+        return {"InsertStmt", {{"Table: " + s.insertStmt->tableName, {}},
+                               listNode("Values", s.insertStmt->values)}};
+    }
+    if (s.type == StmtType::SELECT) {
+        auto& sel = s.selectStmt;
+        TreeNode node{"SelectStmt", {}};
+        node.children.push_back(sel->selectAll ? TreeNode{"Columns: *", {}} : listNode("Columns", sel->columns));
+        node.children.push_back({"From: " + sel->tableName, {}});
+        if (sel->hasWhere) node.children.push_back({"Where", {exprToTree(sel->whereClause)}});
+        if (sel->hasOrderBy) node.children.push_back({"OrderBy: " + sel->orderByColumn, {}});
+        return node;
+    }
+    if (s.type == StmtType::DELETE) {
+        TreeNode node{"DeleteStmt", {{"Table: " + s.deleteStmt->tableName, {}}}};
+        if (s.deleteStmt->hasWhere) node.children.push_back({"Where", {exprToTree(s.deleteStmt->whereClause)}});
+        return node;
+    }
+    if (s.type == StmtType::UPDATE) {
+        auto& upd = s.updateStmt;
+        TreeNode node{"UpdateStmt", {{"Table: " + upd->tableName, {}},
+                                     {"Set", {{"Column: " + upd->columnName, {}}, {"Value: " + upd->newValue, {}}}}}};
+        if (upd->hasWhere) node.children.push_back({"Where", {exprToTree(upd->whereClause)}});
+        return node;
+    }
+    return {"(unknown statement)", {}};
+}
+
+// Recursively draws a tree's children; prefix holds the vertical guide lines of the ancestors.
+void printTree(const TreeNode& node, const std::string& prefix) {
+    for (size_t i = 0; i < node.children.size(); ++i) {
+        bool last = (i + 1 == node.children.size());
+        std::cout << prefix << (last ? "└── " : "├── ") << node.children[i].label << "\n";
+        printTree(node.children[i], prefix + (last ? "    " : "│   "));
     }
 }
 
-// Formats and prints parsed SQL statement AST structure to standard output.
-void printStmt(const Stmt& s) {
-    if (s.type == StmtType::CREATE_TABLE) {
-        std::cout << "CreateTableStmt\n  table: " << s.createStmt->tableName << "\n  columns: ";
-        for (auto& c : s.createStmt->columns) std::cout << c << " ";
-        std::cout << "\n";
-    } else if (s.type == StmtType::INSERT) {
-        std::cout << "InsertStmt\n  table: " << s.insertStmt->tableName << "\n  values: ";
-        for (auto& v : s.insertStmt->values) std::cout << v << " ";
-        std::cout << "\n";
-    } else if (s.type == StmtType::SELECT) {
-        auto& sel = s.selectStmt;
-        std::cout << "SelectStmt\n  columns: ";
-        if (sel->selectAll) std::cout << "*";
-        else for (auto& c : sel->columns) std::cout << c << " ";
-        std::cout << "\n  table: " << sel->tableName << "\n";
-        if (sel->hasWhere) { std::cout << "  where:\n"; printExpr(sel->whereClause, 4); }
-        if (sel->hasOrderBy) std::cout << "  orderBy: " << sel->orderByColumn << "\n";
-    } else if (s.type == StmtType::DELETE) {
-        std::cout << "DeleteStmt\n  table: " << s.deleteStmt->tableName << "\n";
-        if (s.deleteStmt->hasWhere) { std::cout << "  where:\n"; printExpr(s.deleteStmt->whereClause, 4); }
-    } else if (s.type == StmtType::UPDATE) {
-        std::cout << "UpdateStmt\n  table: " << s.updateStmt->tableName
-                  << "\n  col: " << s.updateStmt->columnName
-                  << " = " << s.updateStmt->newValue << "\n";
-        if (s.updateStmt->hasWhere) { std::cout << "  where:\n"; printExpr(s.updateStmt->whereClause, 4); }
-    }
-    std::cout << "----\n";
+// Pretty-prints the whole program (all parsed statements) as a single AST tree.
+void printAST(const std::vector<Stmt>& stmts) {
+    TreeNode program{"Program", {}};
+    for (auto& s : stmts) program.children.push_back(stmtToTree(s));
+    std::cout << program.label << "\n";
+    printTree(program, "");
 }
 
 // Prints a section banner used to separate pipeline phases in verbose mode.
@@ -98,8 +128,8 @@ void runQuery(const std::string& sql, bool verbose) {
         auto stmts = parser.parseProgram();
         if (verbose) {
             printPhase("PHASE 2: SYNTAX ANALYSIS (AST)");
-            std::cout << stmts.size() << " statement(s) parsed successfully.\n----\n";
-            for (auto& s : stmts) printStmt(s);
+            std::cout << stmts.size() << " statement(s) parsed successfully.\n\n";
+            printAST(stmts);
             printPhase("PHASE 3 & 4: SEMANTIC ANALYSIS + EXECUTION");
         }
 
