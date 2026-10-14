@@ -19,6 +19,10 @@ MiniSQL parses, semantically validates, and executes core SQL statements (`CREAT
 
 ## 🏗️ Architecture Pipeline
 
+![MiniSQL architecture diagram](docs/architecture.svg)
+
+The SQL text flows down the centre (Lexer → Parser → Semantic Analyzer → Executor); the side boxes are the shared modules each stage uses. In short:
+
 ```text
 SQL File / Query String
          │
@@ -45,6 +49,21 @@ SQL File / Query String
          ▼
  Formatted ASCII Table Output
 ```
+
+---
+
+## 📄 Source Files
+
+| File | What it does |
+|---|---|
+| [`main.cpp`](src/main.cpp) | Entry point: reads the `.sql` file and runs it through the lexer, parser, semantic analyzer, and executor, printing any errors. |
+| [`token.cpp`](src/token.cpp) | Converts each `TokenType` into its readable name (e.g. `IDENTIFIER`) for debug output. |
+| [`lexer.cpp`](src/lexer.cpp) | Breaks raw SQL text into tokens (keywords, identifiers, numbers, strings, operators), skipping whitespace and `--` comments. |
+| [`parser.cpp`](src/parser.cpp) | Recursive-descent parser that turns the tokens into an AST, with `OR` < `AND` < comparison precedence in `WHERE`. |
+| [`catalog.cpp`](src/catalog.cpp) | Schema catalog that records each table's column names so they can be checked before execution. |
+| [`semantic.cpp`](src/semantic.cpp) | Validates each statement against the catalog: tables and columns exist, and value counts match. |
+| [`storage.cpp`](src/storage.cpp) | In-memory storage engine that holds every table's rows and creates, inserts, and looks up tables. |
+| [`executor.cpp`](src/executor.cpp) | Runs each statement: evaluates `WHERE`, sorts with `ORDER BY`, updates or deletes rows, and prints `SELECT` results as ASCII tables. |
 
 ---
 
@@ -206,6 +225,7 @@ minisql/
 │   ├── sample2.sql     # Schema test script
 │   └── error.sql       # Error handling validation script
 ├── docs/
+│   ├── architecture.svg # Architecture flow diagram
 │   └── progress.md     # Task progress & milestone log
 ├── Makefile            # Build automation configuration
 ├── build.sh            # Shell compilation script
