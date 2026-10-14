@@ -112,14 +112,24 @@ DELETE FROM employees;
 ## 🚀 Quick Start
 
 ### Prerequisites
-* A C++17 compatible compiler (e.g., `g++` 7.0 or higher)
+* A C++17 compatible compiler (e.g., `g++` 7.0 or higher). Check with `g++ --version`; if it's missing:
+  * **macOS**: `xcode-select --install`
+  * **Ubuntu / Debian**: `sudo apt install build-essential`
+  * **Windows**: use WSL, then the Ubuntu command above
 * `make` or `bash` (optional)
 
-### 1. Compile the Project
+### 1. Clone the Repository
 
-* **Using `g++` directly**:
+```bash
+git clone https://github.com/milpatel15/minisql.git
+cd minisql
+```
+
+### 2. Compile the Project
+
+* **Using `Makefile`** (recommended):
   ```bash
-  g++ -Wall -std=c++17 src/*.cpp -o sqlcompiler
+  make
   ```
 
 * **Using `build.sh`**:
@@ -128,12 +138,14 @@ DELETE FROM employees;
   ./build.sh
   ```
 
-* **Using `Makefile`**:
+* **Using `g++` directly**:
   ```bash
-  make
+  g++ -Wall -std=c++17 src/*.cpp -o sqlcompiler
   ```
 
-### 2. Run SQL Scripts
+This produces the `./sqlcompiler` executable in the project folder. Re-run `make` after editing any file in `src/`.
+
+### 3. Run SQL Scripts
 
 Execute a multi-statement SQL script file:
 
@@ -147,15 +159,47 @@ Or run the multi-table university tracking case study:
 ./sqlcompiler tests/case_study.sql
 ```
 
+Or run your own `.sql` file:
+
+```bash
+./sqlcompiler path/to/your_queries.sql
+```
+
 Or run without arguments to execute built-in fallback queries:
 
 ```bash
 ./sqlcompiler
 ```
 
+Each run starts with an empty in-memory database, so every script should begin with `CREATE TABLE`.
+
+### 4. View Every Compiler Phase (Verbose Mode)
+
+Add `--verbose` (or `-v`) to print the token stream (lexical analysis), the AST (syntax analysis), and each semantic check before the results:
+
+```bash
+./sqlcompiler --verbose tests/sample1.sql
+```
+
+### 5. Reading the Output
+
+| Output | Meaning |
+|---|---|
+| `Table 'x' created successfully.` / `1 row inserted into 'x'.` | Statement succeeded |
+| `N rows updated in 'x'.` / `N rows deleted from 'x'.` | Statement succeeded |
+| ASCII table followed by `(N rows)` | `SELECT` succeeded; the table is the query result |
+| `ERROR: Parse error at line N: ...` | Syntax error: nothing in the file is executed |
+| `ERROR: Unknown table/column ...` | Semantic error: earlier statements ran, this one and the rest are skipped |
+
+A script passed if every statement printed its success message and no `ERROR:` line appears. (`tests/error.sql` is *expected* to fail.)
+
+> **Troubleshooting:** `zsh: no such file or directory: ./sqlcompiler` means the program hasn't been built yet (run `make`) or you're not in the `minisql` folder. `Could not open file: ...` means the `.sql` path is wrong.
+
 ---
 
 ## 📊 Sample Execution Output
+
+### Normal Mode
 
 Running `./sqlcompiler tests/crud_test.sql`:
 
@@ -200,6 +244,64 @@ Table 'employees' created successfully.
 | Charlie | Engineering | 72000  |
 +---------+-------------+--------+
 (3 rows)
+```
+
+### Verbose Mode
+
+Running `./sqlcompiler --verbose tests/sample2.sql` (note the `VARCHAR` column type is accepted):
+
+```text
+========== PHASE 1: LEXICAL ANALYSIS (tokens) ==========
+LINE  TYPE          TEXT
+1     CREATE        CREATE
+1     TABLE         TABLE
+1     IDENTIFIER    EMPLOYEE
+1     LPAREN        (
+1     IDENTIFIER    id
+1     COMMA         ,
+1     IDENTIFIER    NAME
+1     IDENTIFIER    VARCHAR
+1     RPAREN        )
+1     SEMICOLON     ;
+2     INSERT        INSERT
+2     INTO          INTO
+2     IDENTIFIER    EMPLOYEE
+2     VALUES        VALUES
+2     LPAREN        (
+2     NUMBER        1
+2     COMMA         ,
+2     STRING        MILAN
+2     RPAREN        )
+2     SEMICOLON     ;
+2     END_OF_FILE
+(21 tokens)
+
+========== PHASE 2: SYNTAX ANALYSIS (AST) ==========
+2 statement(s) parsed successfully.
+----
+CreateTableStmt
+  table: EMPLOYEE
+  columns: id NAME
+----
+InsertStmt
+  table: EMPLOYEE
+  values: 1 MILAN
+----
+
+========== PHASE 3 & 4: SEMANTIC ANALYSIS + EXECUTION ==========
+[Statement 1] semantic check: OK
+Table 'EMPLOYEE' created successfully.
+[Statement 2] semantic check: OK
+1 row inserted into 'EMPLOYEE'.
+```
+
+### Error Example
+
+Running `./sqlcompiler tests/error.sql`:
+
+```text
+Table 'students' created successfully.
+ERROR: Unknown column 'badcol' in table 'students'
 ```
 
 ---
