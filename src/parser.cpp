@@ -37,7 +37,23 @@ Stmt Parser::parseStatement() {
                               ": expected CREATE, INSERT, SELECT, DELETE, or UPDATE (got '" + peek().text + "')");
 }
 
-// Parses CREATE TABLE <name> (<col1>, <col2>, ...);
+// Skips an optional column type after a column name, e.g. INT, VARCHAR, VARCHAR(20), DECIMAL(10, 2).
+// Types are accepted for compatibility but not enforced: all values are stored as strings.
+void Parser::skipColumnType() {
+    if (!check(TokenType::IDENTIFIER)) return;
+    advance();
+    if (check(TokenType::LPAREN)) {
+        advance();
+        expect(TokenType::NUMBER, "expected type size");
+        while (check(TokenType::COMMA)) {
+            advance();
+            expect(TokenType::NUMBER, "expected type size");
+        }
+        expect(TokenType::RPAREN, "expected ')' after type size");
+    }
+}
+
+// Parses CREATE TABLE <name> (<col1> [type], <col2> [type], ...);
 Stmt Parser::parseCreateTable() {
     expect(TokenType::CREATE, "expected CREATE");
     expect(TokenType::TABLE, "expected TABLE");
@@ -47,9 +63,11 @@ Stmt Parser::parseCreateTable() {
 
     expect(TokenType::LPAREN, "expected '('");
     stmt->columns.push_back(expect(TokenType::IDENTIFIER, "expected column name").text);
+    skipColumnType();
     while (check(TokenType::COMMA)) {
         advance();
         stmt->columns.push_back(expect(TokenType::IDENTIFIER, "expected column name").text);
+        skipColumnType();
     }
     expect(TokenType::RPAREN, "expected ')'");
     expect(TokenType::SEMICOLON, "expected ';'");
@@ -191,7 +209,7 @@ Stmt Parser::parseUpdate() {
 /* Grammar for WHERE clause precedence (lowest to highest):
      or_expr   -> and_expr (OR and_expr)*
      and_expr  -> comparison (AND comparison)*
-     comparison-> operand (= | > | < | >= | <=) operand
+     comparison-> operand (= | != | > | < | >= | <=) operand
      operand   -> IDENTIFIER | NUMBER | STRING
 */
 
@@ -227,12 +245,13 @@ std::shared_ptr<Expr> Parser::parseAnd() {
     return left;
 }
 
-// Parses binary comparison operations (=, >, <, >=, <=).
+// Parses binary comparison operations (=, !=, >, <, >=, <=).
 std::shared_ptr<Expr> Parser::parseComparison() {
     auto left = parseOperand();
 
     std::string op;
     if (check(TokenType::EQUALS)) op = "=";
+    else if (check(TokenType::NOT_EQUALS)) op = "!=";
     else if (check(TokenType::GREATER)) op = ">";
     else if (check(TokenType::LESS)) op = "<";
     else if (check(TokenType::GREATER_EQ)) op = ">=";

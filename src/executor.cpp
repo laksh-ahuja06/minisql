@@ -105,7 +105,7 @@ void Executor::executeSelect(const SelectStmt& stmt) {
         size_t orderIdx = std::distance(table.columns.begin(), orderIt);
 
         std::stable_sort(filteredRows.begin(), filteredRows.end(),
-            [orderIdx, this](const std::vector<std::string>& a, const std::vector<std::string>& b) {
+            [orderIdx](const std::vector<std::string>& a, const std::vector<std::string>& b) {
                 double valA = 0, valB = 0;
                 bool numA = isNumeric(a[orderIdx], valA);
                 bool numB = isNumeric(b[orderIdx], valB);

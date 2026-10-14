@@ -15,8 +15,8 @@ enum class TokenType {
     // Literal values and identifiers
     IDENTIFIER, NUMBER, STRING,
 
-    // Comparison operators (=, >, <, >=, <=)
-    EQUALS, GREATER, LESS, GREATER_EQ, LESS_EQ,
+    // Comparison operators (=, !=, >, <, >=, <=)
+    EQUALS, NOT_EQUALS, GREATER, LESS, GREATER_EQ, LESS_EQ,
 
     // Punctuation characters
     COMMA, STAR, LPAREN, RPAREN, SEMICOLON,

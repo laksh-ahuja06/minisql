@@ -1,4 +1,4 @@
-// main.cpp - Entry point for MiniSQL compiler pipeline (lexer -> parser -> semantic analyzer).
+// main.cpp - Entry point for MiniSQL compiler pipeline (lexer -> parser -> semantic analyzer -> executor).
 #include "lexer.h"
 #include "parser.h"
 #include "semantic.h"
@@ -8,6 +8,12 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
+#include <cstring>
+
+// RUN the file :
+// make
+// ./sqlcompiler --verbose tests/sample1.sql
 
 // Recursively prints formatted representation of expression AST nodes.
 void printExpr(const std::shared_ptr<Expr>& e, int indent) {
@@ -56,8 +62,24 @@ void printStmt(const Stmt& s) {
     std::cout << "----\n";
 }
 
+// Prints a section banner used to separate pipeline phases in verbose mode.
+void printPhase(const std::string& title) {
+    std::cout << "\n========== " << title << " ==========\n";
+}
+
+// Prints the token stream produced by the lexer as a table of line, type and text.
+void printTokens(const std::vector<Token>& tokens) {
+    std::cout << std::left << std::setw(6) << "LINE" << std::setw(14) << "TYPE" << "TEXT\n";
+    for (auto& t : tokens) {
+        std::cout << std::left << std::setw(6) << t.line
+                  << std::setw(14) << tokenTypeToString(t.type) << t.text << "\n";
+    }
+    std::cout << "(" << tokens.size() << " tokens)\n";
+}
+
 // Executes full MiniSQL pipeline (Lexing -> Parsing -> Semantic Validation -> Execution) on SQL string input.
-void runQuery(const std::string& sql) {
+// In verbose mode, the output of every phase is printed before execution.
+void runQuery(const std::string& sql, bool verbose) {
     Catalog catalog;
     Storage storage;
     Executor executor(storage, catalog);
@@ -66,15 +88,26 @@ void runQuery(const std::string& sql) {
         // 1. Lexical Analysis
         Lexer lexer(sql);
         auto tokens = lexer.tokenize();
+        if (verbose) {
+            printPhase("PHASE 1: LEXICAL ANALYSIS (tokens)");
+            printTokens(tokens);
+        }
 
         // 2. Syntax Analysis (Parsing)
         Parser parser(tokens);
         auto stmts = parser.parseProgram();
+        if (verbose) {
+            printPhase("PHASE 2: SYNTAX ANALYSIS (AST)");
+            std::cout << stmts.size() << " statement(s) parsed successfully.\n----\n";
+            for (auto& s : stmts) printStmt(s);
+            printPhase("PHASE 3 & 4: SEMANTIC ANALYSIS + EXECUTION");
+        }
 
         // 3. Semantic Analysis & Execution
-        for (auto& s : stmts) {
-            checkStatement(s, catalog);
-            executor.execute(s);
+        for (size_t i = 0; i < stmts.size(); ++i) {
+            checkStatement(stmts[i], catalog);
+            if (verbose) std::cout << "[Statement " << i + 1 << "] semantic check: OK\n";
+            executor.execute(stmts[i]);
         }
     } catch (const std::exception& e) {
         std::cout << "ERROR: " << e.what() << "\n";
@@ -83,16 +116,24 @@ void runQuery(const std::string& sql) {
 
 // Program main entrypoint supporting command-line SQL file execution or fallback to demo queries.
 int main(int argc, char* argv[]) {
-    if (argc > 1) {
+    // Optional --verbose / -v flag prints every compiler phase (tokens, AST, semantic checks)
+    bool verbose = false;
+    const char* path = nullptr;
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--verbose") == 0 || std::strcmp(argv[i], "-v") == 0) verbose = true;
+        else path = argv[i];
+    }
+
+    if (path) {
         // Execute SQL file passed via command line argument
-        std::ifstream file(argv[1]);
+        std::ifstream file(path);
         if (!file) {
-            std::cout << "Could not open file: " << argv[1] << "\n";
+            std::cout << "Could not open file: " << path << "\n";
             return 1;
         }
         std::stringstream buffer;
         buffer << file.rdbuf();
-        runQuery(buffer.str());
+        runQuery(buffer.str(), verbose);
     } else {
         // Fallback execution of default sample SQL queries
         std::string defaultSql =
@@ -100,7 +141,7 @@ int main(int argc, char* argv[]) {
             "INSERT INTO students VALUES ('Alice', 22, 'A');"
             "SELECT name, age FROM students WHERE age > 20 AND grade = 'A' ORDER BY age;"
             "SELECT * FROM students;";
-        runQuery(defaultSql);
+        runQuery(defaultSql, verbose);
     }
     return 0;
 }

@@ -44,7 +44,12 @@ std::vector<Token> Lexer::tokenize() {
                 break;
             case '<':
                 if (peek() == '=') { advance(); tokens.push_back({TokenType::LESS_EQ, "<=", line}); }
+                else if (peek() == '>') { advance(); tokens.push_back({TokenType::NOT_EQUALS, "!=", line}); }
                 else tokens.push_back({TokenType::LESS, "<", line});
+                break;
+            case '!':
+                if (peek() == '=') { advance(); tokens.push_back({TokenType::NOT_EQUALS, "!=", line}); }
+                else tokens.push_back({TokenType::UNKNOWN, "!", line});
                 break;
             case ',': tokens.push_back({TokenType::COMMA, ",", line}); break;
             case '*': tokens.push_back({TokenType::STAR, "*", line}); break;

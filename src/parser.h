@@ -48,6 +48,9 @@ private:
     /// Parses a CREATE TABLE statement.
     Stmt parseCreateTable();
 
+    /// Skips an optional column type (e.g. INT, VARCHAR(20)) after a column name.
+    void skipColumnType();
+
     /// Parses an INSERT INTO statement.
     Stmt parseInsert();
 
@@ -67,7 +70,7 @@ private:
     /// Parses AND expressions.
     std::shared_ptr<Expr> parseAnd();
 
-    /// Parses comparison expressions (=, >, <, >=, <=).
+    /// Parses comparison expressions (=, !=, >, <, >=, <=).
     std::shared_ptr<Expr> parseComparison();
 
     /// Parses leaf operands (identifiers, numbers, string literals).
